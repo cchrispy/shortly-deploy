@@ -55,7 +55,7 @@ module.exports = function(grunt) {
       scripts: {
         files: [
           'public/client/**/*.js',
-          'publicpublic/lib/**/*.js',
+          'public/lib/**/*.js',
         ],
         tasks: [
           'build'
