@@ -8,8 +8,8 @@ mongoose.connect('mongodb://localhost/shortly');
 var Schema = mongoose.Schema;
 
 var linkSchema = new Schema({
-  url: String,
-  visits: Number,
+  url: { type: String, validate: util.isValidUrl},
+  visits: { type: Number, default: 0 },
   code: String,
   title: String
 });
@@ -21,30 +21,80 @@ linkSchema.pre('save', function(next) {
 
   util.getUrlTitle(this.url, (err, title) => {
     this.title = title;
-    next();
+    next(err);
   });
 });
+
+linkSchema.statics.getOrCreate = function(url) {
+  if (!url.match(/:\/\//)) {
+    url = 'http://' + url;
+  }
+  return new Promise((resolve, reject) => {
+    this.findOne({ url: url}, (err, link) => {
+      if (link) {
+        resolve(link);
+      } else {
+        new exports.Link({url: url})
+          .save()
+          .then(resolve)
+          .catch(reject);
+      }
+    });
+  });
+};
 
 var userSchema = new Schema({
   username: String,
-  password: String
+  password: String,
+  links: { type: [Schema.ObjectId], default: [] }
 });
 
 userSchema.pre('save', function(next) {
-  bcrypt.hash(this.password, null, null, (err, hash) => {
-    this.password = hash;
+  if (this.isNew) {
+    bcrypt.hash(this.password, null, null, (err, hash) => {
+      console.log('PASS: ', this.password);
+      console.log('HASH: ', hash);
+      this.password = hash;
+      next(err);
+    });
+  } else {
     next();
-  });
+  }
 });
 
-userSchema.statics.authUser = function(name, password, cb) {
-  this.findOne({ username: name }, (err, user) => {
-    if (user) {
-      bcrypt.compare(password, user.password, (err, result) =>
-        cb(result ? user : undefined));
-    } else {
-      cb();
-    }
+userSchema.statics.authUser = function(name, password) {
+  return new Promise((resolve, reject) => {
+    this.findOne({ username: name }, (err, user) => {
+      if (user) {
+        console.log('PASS: ', password);
+        console.log('HASH: ', user.password);
+        bcrypt.compare(password, user.password, (err, match) => {
+          if (match) {
+            resolve(user);
+          } else {
+            reject('incorrect credentials');
+          }
+        });
+      } else {
+        reject('incorrect credentials');
+      }
+    });
+  });
+};
+
+userSchema.statics.exists = function(name, cb) {
+  this.findOne({ username: name }, (err, user) => cb(user)); 
+};
+
+userSchema.statics.newUser = function(name, password) {
+  return new Promise((resolve, reject) => {
+    this.exists(name, user => {
+      if (!user) {
+        resolve(new exports.User({username: name, password: password}).save());
+      } else {
+        reject('user already exists');
+      }
+    });
   });
 };
 
