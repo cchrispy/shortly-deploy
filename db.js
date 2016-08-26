@@ -52,8 +52,6 @@ var userSchema = new Schema({
 userSchema.pre('save', function(next) {
   if (this.isNew) {
     bcrypt.hash(this.password, null, null, (err, hash) => {
-      console.log('PASS: ', this.password);
-      console.log('HASH: ', hash);
       this.password = hash;
       next(err);
     });
@@ -66,8 +64,6 @@ userSchema.statics.authUser = function(name, password) {
   return new Promise((resolve, reject) => {
     this.findOne({ username: name }, (err, user) => {
       if (user) {
-        console.log('PASS: ', password);
-        console.log('HASH: ', user.password);
         bcrypt.compare(password, user.password, (err, match) => {
           if (match) {
             resolve(user);
@@ -90,7 +86,10 @@ userSchema.statics.newUser = function(name, password) {
   return new Promise((resolve, reject) => {
     this.exists(name, user => {
       if (!user) {
-        resolve(new exports.User({username: name, password: password}).save());
+        resolve(new exports.User({
+          username: name,
+          password: password
+        }).save());
       } else {
         reject('user already exists');
       }
